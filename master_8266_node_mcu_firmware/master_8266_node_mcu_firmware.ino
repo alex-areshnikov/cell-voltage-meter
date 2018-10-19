@@ -15,7 +15,7 @@ StaticJsonBuffer<TOTAL_BANKS_CAPACITY> banks_json_buffer;
 JsonArray& banks_voltages = banks_json_buffer.createArray();
 
 void setup() {
-  Wire.begin(D2, D1);
+  Wire.begin(D1, D2); // D1 - SDA; D2 - SCL
 
   initializeBanks();
 
