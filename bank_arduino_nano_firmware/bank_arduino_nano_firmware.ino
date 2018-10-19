@@ -3,7 +3,7 @@
 
 const bool DEBUG_MODE = false;
 const int VOLTAGE_PINS[] = {0,1,2,3,6,7};
-const int DEVICE_ADDRESS = 10;
+const int DEVICE_ADDRESS = 9;
 const float VOLTAGE_CORRECTION = 0.14;
 
 const int CAPACITY = JSON_ARRAY_SIZE(6);
@@ -12,7 +12,7 @@ char voltages_buffer [CAPACITY];
 
 void setup() {  
   Wire.begin(DEVICE_ADDRESS);
-  Wire.onRequest(request_event);
+  Wire.onRequest(requestEvent);
 
   if(DEBUG_MODE) {
     Serial.begin(9600);
@@ -38,6 +38,6 @@ void loop() {
   delay(200);
 }
 
-void request_event() {   
+void requestEvent() {   
   Wire.write(voltages_buffer);
 }

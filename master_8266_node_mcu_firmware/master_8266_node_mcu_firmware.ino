@@ -3,77 +3,107 @@
 
 const bool DEBUG_MODE = false;
 const int BANK_DEVICE_ADDRESSES[] = {9, 10};
+const int BANKS_COUNT = 2;
+const int CELL_COUNT = 6;
 
-const int CAPACITY = JSON_ARRAY_SIZE(6);
+const int SINGLE_BANK_CAPACITY = JSON_ARRAY_SIZE(CELL_COUNT);
+const int TOTAL_BANKS_CAPACITY = JSON_ARRAY_SIZE(BANKS_COUNT)
+  + BANKS_COUNT * JSON_OBJECT_SIZE(BANKS_COUNT)
+  + BANKS_COUNT * JSON_ARRAY_SIZE(CELL_COUNT+1);
+
+StaticJsonBuffer<TOTAL_BANKS_CAPACITY> banks_json_buffer;
+JsonArray& banks_voltages = banks_json_buffer.createArray();
 
 void setup() {
   Wire.begin(D2, D1);
 
+  initializeBanks();
+
   if(DEBUG_MODE) {
     Serial.begin(9600);
     Serial.println("Initialized Master.");
+    debugSayTotal();
   }
 }
 
 void loop() {
-  process_bank(1);
-  process_bank(2);
-  delay(2000);
+  for(int bank_number = 0; bank_number < BANKS_COUNT; bank_number++) {
+    processBank(bank_number);
+  }
+
+  if(DEBUG_MODE) {
+    delay(1000);
+  } else {
+    delay(200);
+  }  
 }
 
-void process_bank(int bank_number) {
-  int index = 0;
-  char voltages_buffer [CAPACITY];
-  StaticJsonBuffer<CAPACITY> json_buffer;
+void initializeBanks() {
+  for(int index = 0; index < BANKS_COUNT; index++) {
+    JsonObject& bank_obj = banks_json_buffer.createObject();
+    JsonArray& bank_voltages = banks_json_buffer.createArray();
 
-  debug_say("\nRequest Bank ");
-  debug_sayln(bank_number);
+    for(int cell = 0; cell < CELL_COUNT; cell++) {
+      bank_voltages.add(0.0);
+    }
+    
+    bank_obj["name"] = String("Bank ") + (index + 1);    
+    bank_obj["voltages"] = bank_voltages;
+    banks_voltages.add(bank_obj);
+  }
+}
+
+void processBank(int bank_number) {
+  int index = 0;
+  char voltages_buffer [SINGLE_BANK_CAPACITY];
+  StaticJsonBuffer<SINGLE_BANK_CAPACITY> json_buffer;
+
+  debugSay("\nRequest Bank ");
+  debugSayln(bank_number + 1);
   
-  Wire.requestFrom(BANK_DEVICE_ADDRESSES[bank_number-1], CAPACITY);
+  Wire.requestFrom(BANK_DEVICE_ADDRESSES[bank_number], SINGLE_BANK_CAPACITY);
 
   while (Wire.available()) {  
-    char chr = Wire.read();
-    voltages_buffer[index] = chr;
-    index++;
+    voltages_buffer[index++] = Wire.read();
   }
 
   JsonArray& voltages = json_buffer.parseArray(voltages_buffer);
 
   if (voltages.success()) {
-    for(int i=0; i<6; i++) {
-      debug_say("Cell ");
-      debug_say(i+1);
-      debug_say(": ");
-      debug_say(voltages[i].as<float>());
-      debug_say("v ");
-    }
-    debug_sayln("\n------");
+    banks_voltages[bank_number]["voltages"] = voltages;
+    debugSayTotal();
   } else {
-    debug_sayln("Valtages parsing failed");
+    debugSayln("Valtages parsing failed");
   }  
 }
 
 // DEBUG helper methods
 
-void debug_say(char* message) {
+void debugSayTotal() {
+  if(DEBUG_MODE) {
+    banks_voltages.printTo(Serial);
+  }
+}
+
+void debugSay(char* message) {
   if(DEBUG_MODE) {
     Serial.print(message);
   }
 }
 
-void debug_say(int integer) {
+void debugSay(int integer) {
   if(DEBUG_MODE) {
     Serial.print(integer);
   }
 }
 
-void debug_sayln(char* message) {
+void debugSayln(char* message) {
   if(DEBUG_MODE) {
     Serial.println(message);
   }
 }
 
-void debug_sayln(int integer) {
+void debugSayln(int integer) {
   if(DEBUG_MODE) {
     Serial.println(integer);
   }
