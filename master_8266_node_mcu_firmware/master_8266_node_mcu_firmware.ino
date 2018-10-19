@@ -1,14 +1,18 @@
 #include <ArduinoJson.h>
 #include <Wire.h>
 
+const bool DEBUG_MODE = false;
 const int BANK_DEVICE_ADDRESSES[] = {9, 10};
+
 const int CAPACITY = JSON_ARRAY_SIZE(6);
 
 void setup() {
   Wire.begin(D2, D1);
 
-  Serial.begin(9600);
-  Serial.println("Initialized Master.");
+  if(DEBUG_MODE) {
+    Serial.begin(9600);
+    Serial.println("Initialized Master.");
+  }
 }
 
 void loop() {
@@ -22,9 +26,9 @@ void process_bank(int bank_number) {
   char voltages_buffer [CAPACITY];
   StaticJsonBuffer<CAPACITY> json_buffer;
 
-  Serial.print("\nRequest Bank ");
-  Serial.println(bank_number);
-
+  debug_say("\nRequest Bank ");
+  debug_sayln(bank_number);
+  
   Wire.requestFrom(BANK_DEVICE_ADDRESSES[bank_number-1], CAPACITY);
 
   while (Wire.available()) {  
@@ -37,14 +41,40 @@ void process_bank(int bank_number) {
 
   if (voltages.success()) {
     for(int i=0; i<6; i++) {
-      Serial.print("Cell ");
-      Serial.print(i+1);
-      Serial.print(": ");
-      Serial.print(voltages[i].as<float>());
-      Serial.print("v ");
+      debug_say("Cell ");
+      debug_say(i+1);
+      debug_say(": ");
+      debug_say(voltages[i].as<float>());
+      debug_say("v ");
     }
-    Serial.println("\n------");
+    debug_sayln("\n------");
   } else {
-    Serial.println("parseObject() failed");
+    debug_sayln("Valtages parsing failed");
   }  
+}
+
+// DEBUG helper methods
+
+void debug_say(char* message) {
+  if(DEBUG_MODE) {
+    Serial.print(message);
+  }
+}
+
+void debug_say(int integer) {
+  if(DEBUG_MODE) {
+    Serial.print(integer);
+  }
+}
+
+void debug_sayln(char* message) {
+  if(DEBUG_MODE) {
+    Serial.println(message);
+  }
+}
+
+void debug_sayln(int integer) {
+  if(DEBUG_MODE) {
+    Serial.println(integer);
+  }
 }
