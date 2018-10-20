@@ -1,10 +1,11 @@
 #include <ArduinoJson.h>
 #include <Wire.h>
 
-const bool DEBUG_MODE = false;
-const int VOLTAGE_PINS[] = {0,1,2,3,6,7};
-const int DEVICE_ADDRESS = 10;
-const float VOLTAGE_CORRECTION = 0.14;
+const bool  DEBUG_MODE = true;
+const int   DEVICE_ADDRESS = 10;
+const int   VOLTAGE_PINS[] = {0,1,2,3,6,7};
+const float VOLTAGE_CORRECTIONS[] = {-0.05,-0.12,-0.18,0.05,0.05,0.3};
+const int   REDUCTION_FACTOR_MULTIPLIERS[] = {1,2,2,3,3,4};
 
 const int CAPACITY = JSON_ARRAY_SIZE(6);
 
@@ -21,13 +22,15 @@ void setup() {
   }
 }
 
-void loop() {  
+void loop() {    
+  float pin_read;
+  float voltage;
   StaticJsonBuffer<CAPACITY> json_buffer;  
   JsonArray& voltages = json_buffer.createArray();
 
   for(int index = 0; index < 6; index++) {
-    float pin_read = analogRead(VOLTAGE_PINS[index]);
-    float voltage = pin_read * (5.0 / 1023);
+    pin_read = analogRead(VOLTAGE_PINS[index]);
+    voltage = calculateVoltageFor(pin_read, index);
 
     voltage = roundf(voltage * 100) / 100.0;    
     voltages.add(voltage);
@@ -37,6 +40,12 @@ void loop() {
 
   debugSayTotal();
   delay(200);
+}
+
+float calculateVoltageFor(float pin_read, int cell_number) {
+  int multiplier = REDUCTION_FACTOR_MULTIPLIERS[cell_number];
+  float correction = VOLTAGE_CORRECTIONS[cell_number];
+  return (pin_read * ((5.0 * multiplier) / 1023) + correction);
 }
 
 void requestEvent() {   
