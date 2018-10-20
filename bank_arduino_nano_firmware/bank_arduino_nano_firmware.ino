@@ -3,7 +3,7 @@
 
 const bool DEBUG_MODE = false;
 const int VOLTAGE_PINS[] = {0,1,2,3,6,7};
-const int DEVICE_ADDRESS = 9;
+const int DEVICE_ADDRESS = 10;
 const float VOLTAGE_CORRECTION = 0.14;
 
 const int CAPACITY = JSON_ARRAY_SIZE(6);
@@ -27,17 +27,24 @@ void loop() {
 
   for(int index = 0; index < 6; index++) {
     float pin_read = analogRead(VOLTAGE_PINS[index]);
-    float voltage = (pin_read/1023*5.0) - VOLTAGE_CORRECTION;
+    float voltage = pin_read * (5.0 / 1023);
 
     voltage = roundf(voltage * 100) / 100.0;    
     voltages.add(voltage);
   }
 
   voltages.printTo(voltages_buffer);
-  
+
+  debugSayTotal();
   delay(200);
 }
 
 void requestEvent() {   
   Wire.write(voltages_buffer);
+}
+
+void debugSayTotal() {
+  if(DEBUG_MODE) {
+    Serial.println(voltages_buffer);
+  }
 }
