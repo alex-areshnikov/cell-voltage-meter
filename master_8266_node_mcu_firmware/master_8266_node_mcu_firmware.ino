@@ -6,8 +6,8 @@
 #define DEBUG_MODE  false
 #define TFT_ENABLED true
 
-#define SDA         D1
-#define SCL         D2
+#define SDA         D2
+#define SCL         D1
 
 #define TFT_CS      D0
 #define TFT_RST     -1
@@ -43,11 +43,7 @@ void loop() {
   debugSayTotal();
   tftSayTotal();
 
-  if(DEBUG_MODE) {
-    delay(1000);
-  } else {
-    delay(200);
-  }  
+  delay(DEBUG_MODE ? 1000 : 200);
 }
 
 void initializeTFT() {
@@ -55,9 +51,8 @@ void initializeTFT() {
     tft.initR(INITR_BLACKTAB);
     //tft.setTextWrap(false); // Allow text to run off right edge
     tft.fillScreen(ST77XX_BLACK);
-
     tft.setRotation(1);
-    
+
     tftSayTotal();
   }
 }
@@ -70,8 +65,8 @@ void initializeBanks() {
     for(int cell = 0; cell < CELL_COUNT; cell++) {
       bank_voltages.add(0.0);
     }
-    
-    bank_obj["name"] = String("Bank ") + (index + 1);    
+
+    bank_obj["name"] = String("Bank ") + (index + 1);
     bank_obj["voltages"] = bank_voltages;
     banks_voltages.add(bank_obj);
   }
@@ -80,55 +75,53 @@ void initializeBanks() {
 void processBank(int bank_number) {
   int index = 0;
   char voltages_buffer [SINGLE_BANK_CAPACITY];
+  DynamicJsonBuffer dynamic_json_buffer;
 
   debugSay("Request Bank ");
   debugSay(bank_number + 1);
   debugSay("... ");
-  
+
   Wire.requestFrom(BANK_DEVICE_ADDRESSES[bank_number], SINGLE_BANK_CAPACITY);
 
-  while (Wire.available()) {  
+  while (Wire.available()) {
     voltages_buffer[index++] = Wire.read();
   }
 
-  DynamicJsonBuffer dynamic_json_buffer;
   JsonArray& voltages = dynamic_json_buffer.parseArray(voltages_buffer);
 
   if (voltages.success()) {
     for(int cell = 0; cell < CELL_COUNT; cell++) {
       float volt = voltages[cell].as<float>();
       banks_voltages[bank_number]["voltages"][cell] = volt;
-    }    
+    }
     debugSayln(voltages);
   } else {
     debugSayln("Valtages parsing failed");
-  }  
+  }
 }
 
 void tftSayTotal() {
   if(TFT_ENABLED) {
-    
     tft.setCursor(0, 0);
     tft.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
     tft.setTextSize(1);
-      
+
     for(int bank_number = 0; bank_number < BANKS_COUNT; bank_number++) {
       tft.println(banks_voltages[bank_number]["name"].as<String>());
 
       for(int cell = 0; cell < CELL_COUNT; cell++) {
         char cell_buf[4];
-        
+
         if(cell == CELL_COUNT/2) {
            tft.println();
         }
 
-        dtostrf(banks_voltages[bank_number]["voltages"][cell].as<float>(), 4, 2, cell_buf);      
+        dtostrf(banks_voltages[bank_number]["voltages"][cell].as<float>(), 4, 2, cell_buf);
         tft.print(cell_buf);
         tft.print("v ");
       }
 
-      tft.println();
-      tft.println();
+      tft.println("\n");
     }
   }
 }
