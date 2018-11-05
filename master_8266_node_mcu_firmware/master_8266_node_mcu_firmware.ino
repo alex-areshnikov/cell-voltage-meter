@@ -1,12 +1,13 @@
-#include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
 
+#include "DebugHelper.h"
+#include "TFTScreen.h"
+
 #define DEBUG_MODE  false
-#define TFT_ENABLED true
+#define TFT_ENABLED false
 
 #define WIFI_SSID   "MustangGT"
 #define WIFI_PWD    "ignorepassword"
@@ -35,23 +36,29 @@ const int SINGLE_BANK_CAPACITY = CELL_MEMORY_ALLOCATION * CELL_COUNT;
 const int TOTAL_BANKS_CAPACITY = (SINGLE_BANK_CAPACITY + BANK_INFO_MEMORY_ALLOCATION) * BANKS_COUNT;
 const int BANK_DEVICE_ADDRESSES[] = {9, 10};
 
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
-
 StaticJsonBuffer<TOTAL_BANKS_CAPACITY> banks_json_buffer;
 JsonArray& banks_voltages = banks_json_buffer.createArray();
 
 WiFiClient esp_client;
 PubSubClient mqtt_client(esp_client);
 
+DebugHelper debug(DEBUG_MODE);
+TFTScreen tft(TFT_ENABLED, TFT_CS, TFT_RST, TFT_DC);
+
 void setup() {
   Wire.begin(SDA, SCL);
 
-  initializeDebug();
+  debug.initialize();
+  tft.initialize();
 
   initializeBanks();  
   initializeWifi();
   initializeMqtt();
-  initializeTFT();
+
+  debug.sayln("Initialized Master.");
+  debug.sayln(banks_voltages);
+
+  tft.sayTotal(banks_voltages, BANKS_COUNT, CELL_COUNT);
 }
 
 void loop() {
@@ -62,8 +69,8 @@ void loop() {
   processMqtt();  
   publishVoltages();
   
-  debugSayTotal();
-  tftSayTotal();
+  debug.sayln(banks_voltages);
+  tft.sayTotal(banks_voltages, BANKS_COUNT, CELL_COUNT);
 
   delay(DEBUG_MODE ? 1000 : 200);
 }
@@ -79,9 +86,9 @@ void processBank(int bank_number) {
   char voltages_buffer [SINGLE_BANK_CAPACITY];
   DynamicJsonBuffer dynamic_json_buffer;
 
-  debugSay("Request Bank ");
-  debugSay(bank_number + 1);
-  debugSay("... ");
+  debug.say("Request Bank ");
+  debug.say(bank_number + 1);
+  debug.say("... ");
 
   Wire.requestFrom(BANK_DEVICE_ADDRESSES[bank_number], SINGLE_BANK_CAPACITY);
 
@@ -97,9 +104,9 @@ void processBank(int bank_number) {
       banks_voltages[bank_number]["voltages"][cell] = volt;
     }
             
-    debugSayln(voltages);
+    debug.sayln(voltages);
   } else {
-    debugSayln("Valtages parsing failed");
+    debug.sayln("Valtages parsing failed");
   }  
 }
 
@@ -113,7 +120,7 @@ void processMqtt() {
 
 void mqtt_reconnect() {
   while (!mqtt_client.connected()) {
-    debugSay("Attempting MQTT connection...");
+    debug.say("Attempting MQTT connection...");
     
     // Create a random client ID
     String clientId = "ESP8266Client-";
@@ -121,11 +128,11 @@ void mqtt_reconnect() {
     
     // Attempt to connect
     if (mqtt_client.connect(clientId.c_str())) {
-      debugSayln("connected");
+      debug.sayln("connected");
     } else {
-      debugSay("failed, rc=");
-      debugSay(mqtt_client.state());
-      debugSayln(" try again in 5 seconds");
+      debug.say("failed, rc=");
+      debug.say(mqtt_client.state());
+      debug.sayln(" try again in 5 seconds");
       
       delay(5000);
     }
@@ -152,23 +159,23 @@ void initializeBanks() {
 void initializeWifi() {
   delay(10);
     
-  debugSay("\nConnecting to ");
-  debugSayln(WIFI_SSID);
+  debug.say("\nConnecting to ");
+  debug.sayln(WIFI_SSID);
 
   WiFi.mode(WIFI_STA);  // station mode
   WiFi.begin(WIFI_SSID, WIFI_PWD);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    debugSay(".");
+    debug.say(".");
   }
 
   randomSeed(micros());
 
-  debugSayln("");
-  debugSayln("WiFi connected");
-  debugSayln("IP address: ");
-  debugSayln(WiFi.localIP());
+  debug.sayln("");
+  debug.sayln("WiFi connected");
+  debug.sayln("IP address: ");
+  debug.sayln(WiFi.localIP());
 }
 
 void initializeMqtt() {
@@ -177,91 +184,4 @@ void initializeMqtt() {
   // Define callback if needed (topic subscibe)
   //
   //mqtt_client.setCallback(callback); 
-}
-
-void initializeTFT() {
-  if(TFT_ENABLED) {
-    tft.initR(INITR_BLACKTAB);
-    //tft.setTextWrap(false); // Allow text to run off right edge
-    tft.fillScreen(ST77XX_BLACK);
-    tft.setRotation(1);
-
-    tftSayTotal();
-  }
-}
-
-// ----- Initializers End ------
-
-void tftSayTotal() {
-  if(TFT_ENABLED) {
-    tft.setCursor(0, 0);
-    tft.setTextColor(ST77XX_YELLOW, ST77XX_BLACK);
-    tft.setTextSize(1);
-
-    for(int bank_number = 0; bank_number < BANKS_COUNT; bank_number++) {
-      tft.println(banks_voltages[bank_number]["name"].as<String>());
-
-      for(int cell = 0; cell < CELL_COUNT; cell++) {
-        char cell_buf[4];
-
-        if(cell == CELL_COUNT/2) {
-           tft.println();
-        }
-
-        dtostrf(banks_voltages[bank_number]["voltages"][cell].as<float>(), 4, 2, cell_buf);
-        tft.print(cell_buf);
-        tft.print("v ");
-      }
-
-      tft.println("\n");
-    }
-  }
-}
-
-// DEBUG helper methods
-
-void initializeDebug() {
-  if(DEBUG_MODE) {
-    Serial.begin(115200);
-    debugSayln("Initialized Master.");
-    debugSayTotal();
-  }
-}
-
-void debugSayTotal() {
-  if(DEBUG_MODE) {
-    banks_voltages.printTo(Serial);
-    Serial.println();
-  }
-}
-
-void debugSay(char* message) {
-  if(DEBUG_MODE) {
-    Serial.print(message);
-  }
-}
-
-void debugSay(int integer) {
-  if(DEBUG_MODE) {
-    Serial.print(integer);
-  }
-}
-
-void debugSayln(char* message) {
-  if(DEBUG_MODE) {
-    Serial.println(message);
-  }
-}
-
-void debugSayln(int integer) {
-  if(DEBUG_MODE) {
-    Serial.println(integer);
-  }
-}
-
-void debugSayln(ArduinoJson::JsonArray& arr) {
-  if(DEBUG_MODE) {
-    arr.printTo(Serial);
-    Serial.println();
-  }
 }
