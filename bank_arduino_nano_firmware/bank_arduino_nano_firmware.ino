@@ -5,7 +5,7 @@
 const bool  DEBUG_MODE = false;
 const int   DEVICE_ADDRESS = 9;
 const int   VOLTAGE_PINS[] = {0,1,2,3,6,7};
-const float VOLTAGE_CORRECTIONS[] = {-0.1,-0.18,-0.28,-0.35,-0.49,-0.53};
+const float VOLTAGE_CORRECTIONS[] = {0, 0, 0, 0, 0, 0};
 const int   REDUCTION_FACTOR_MULTIPLIERS[] = {1,2,2,3,3,4};
 
 const int CAPACITY = JSON_ARRAY_SIZE(6);
@@ -17,7 +17,7 @@ void setup() {
   Wire.onRequest(requestEvent);
 
   if(DEBUG_MODE) {
-    Serial.begin(9600);
+    Serial.begin(115200);
     while (!Serial) continue;
     Serial.println("Initialized.");
   }
