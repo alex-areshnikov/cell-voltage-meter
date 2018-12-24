@@ -4,24 +4,21 @@
 #include <Wire.h>
 
 #include "DebugHelper.h"
-#include "TFTScreen.h"
 
 #define DEBUG_MODE  false
-#define TFT_ENABLED false
 
 #define WIFI_SSID   "MustangGT"
 #define WIFI_PWD    "ignorepassword"
 
-#define MQTT_SERVER "192.168.4.1"
-#define MQTT_SERVER_PORT 1883
-#define MQTT_TOPIC  "vehicle/lto/voltages"
+#define MQTT_SERVER           "192.168.4.1"
+#define MQTT_SERVER_PORT      1883
+#define MQTT_VOLTAGES_TOPIC   "vehicle/lto/voltages"
+#define MQTT_CHARGE_TOPIC     "vehicle/lto/charge"
 
 #define SDA         D2
 #define SCL         D1
 
-#define TFT_CS      D0
-#define TFT_RST     -1
-#define TFT_DC      D3
+#define CHARGE_RELAY_PIN D3
 
 #define BANKS_COUNT 2
 #define CELL_COUNT  6
@@ -43,22 +40,19 @@ WiFiClient esp_client;
 PubSubClient mqtt_client(esp_client);
 
 DebugHelper debug(DEBUG_MODE);
-TFTScreen tft(TFT_ENABLED, TFT_CS, TFT_RST, TFT_DC);
 
 void setup() {
   Wire.begin(SDA, SCL);
-
+  
   debug.initialize();
-  tft.initialize();
-
   initializeBanks();  
   initializeWifi();
   initializeMqtt();
 
+  pinMode(CHARGE_RELAY_PIN, OUTPUT);  
+
   debug.sayln("Initialized Master.");
   debug.sayln(banks_voltages);
-
-  tft.sayTotal(banks_voltages, BANKS_COUNT, CELL_COUNT);
 }
 
 void loop() {
@@ -70,15 +64,13 @@ void loop() {
   publishVoltages();
   
   debug.sayln(banks_voltages);
-  tft.sayTotal(banks_voltages, BANKS_COUNT, CELL_COUNT);
-
   delay(DEBUG_MODE ? 1000 : 200);
 }
 
 void publishVoltages() {
   char voltages_char[TOTAL_BANKS_CAPACITY];
   banks_voltages.printTo(voltages_char);
-  mqtt_client.publish(MQTT_TOPIC, voltages_char);
+  mqtt_client.publish(MQTT_VOLTAGES_TOPIC, voltages_char);
 }
 
 void processBank(int bank_number) {
@@ -129,12 +121,39 @@ void mqtt_reconnect() {
     // Attempt to connect
     if (mqtt_client.connect(clientId.c_str())) {
       debug.sayln("connected");
+
+      if(mqtt_client.subscribe(MQTT_CHARGE_TOPIC)) {
+        debug.say("MQTT subscribed to ");
+        debug.sayln(MQTT_CHARGE_TOPIC);
+      }
+
     } else {
       debug.say("failed, rc=");
       debug.say(mqtt_client.state());
       debug.sayln(" try again in 5 seconds");
       
       delay(5000);
+    }
+  }
+}
+
+void mqtt_callback(char* topic, byte* payload, unsigned int length)
+{
+  debug.sayln("MQTT message received.");
+  debug.say("Topic: ");
+  debug.sayln(topic);
+  debug.say("Payload: ");    
+  debug.sayln((char*)payload);
+
+  if(String(topic) == MQTT_CHARGE_TOPIC) {
+    char first_chr = ((char*)payload)[0];
+
+    if(first_chr == '1') {
+      digitalWrite(CHARGE_RELAY_PIN, HIGH);
+    }
+
+    if(first_chr == '0') {
+      digitalWrite(CHARGE_RELAY_PIN, LOW);
     }
   }
 }
@@ -180,8 +199,5 @@ void initializeWifi() {
 
 void initializeMqtt() {
   mqtt_client.setServer(MQTT_SERVER, MQTT_SERVER_PORT);
-
-  // Define callback if needed (topic subscibe)
-  //
-  //mqtt_client.setCallback(callback); 
+  mqtt_client.setCallback(mqtt_callback); 
 }
