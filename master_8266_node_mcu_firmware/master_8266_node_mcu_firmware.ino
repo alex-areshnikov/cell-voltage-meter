@@ -42,14 +42,12 @@ PubSubClient mqtt_client(esp_client);
 DebugHelper debug(DEBUG_MODE);
 
 void setup() {
-  Wire.begin(SDA, SCL);
+  initializeBoard();
   
   debug.initialize();
   initializeBanks();  
   initializeWifi();
   initializeMqtt();
-
-  pinMode(CHARGE_RELAY_PIN, OUTPUT);  
 
   debug.sayln("Initialized Master.");
   debug.sayln(banks_voltages);
@@ -159,6 +157,12 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
 }
 
 // ----- Initializers ------
+
+void initializeBoard() {
+  Wire.begin(SDA, SCL);
+  pinMode(CHARGE_RELAY_PIN, OUTPUT);  
+  digitalWrite(CHARGE_RELAY_PIN, HIGH);
+}
 
 void initializeBanks() {
   for(int index = 0; index < BANKS_COUNT; index++) {
