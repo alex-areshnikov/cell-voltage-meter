@@ -6,10 +6,16 @@ DebugHelper::DebugHelper(bool debugMode) {
   this->debugMode = debugMode;  
 }
 
-void DebugHelper::initialize() {
+void DebugHelper::initialize(int baud = 9600) {
   if(debugMode) {
-    Serial.begin(115200);
+    Serial.begin(baud);
     while (!Serial) continue;
+  }
+}
+
+void DebugHelper::say(String message) {
+  if(debugMode) {
+    Serial.print(message);
   }
 }
 
@@ -32,6 +38,12 @@ void DebugHelper::say(ArduinoJson::JsonArray& arr) {
 }
 
 void DebugHelper::sayln(char* message) {
+  if(debugMode) {
+    Serial.println(message);
+  }
+}
+
+void DebugHelper::sayln(String message) {
   if(debugMode) {
     Serial.println(message);
   }

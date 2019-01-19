@@ -7,12 +7,14 @@ private:
 public:
     DebugHelper(bool debugMode);
 
-    void initialize();
+    void initialize(int baud);
 
+    void say(String message);
     void say(char* message);
     void say(int integer);
     void say(ArduinoJson::JsonArray& arr);
 
+    void sayln(String message);
     void sayln(char* message);
     void sayln(int integer);
     void sayln(ArduinoJson::JsonArray& arr);
