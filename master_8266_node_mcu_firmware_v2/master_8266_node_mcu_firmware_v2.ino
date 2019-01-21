@@ -1,7 +1,9 @@
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-#include <Wire.h>
+#include "DebugHelper.h"
+
+#define DEBUG_MODE  true 
 
 #define WIFI_SSID   "MustangGT"
 #define WIFI_PWD    "ignorepassword"
@@ -11,19 +13,23 @@
 #define MQTT_VOLTAGES_TOPIC   "vehicle/lto/voltages"
 #define MQTT_CHARGE_TOPIC     "vehicle/lto/charge"
 
-// WeMos GPIO
-#define D0 16 // 3
-#define D1 5 // 1
-#define D2 4 // 16
-#define D3 0 // 5
-#define D4 2 // 4
-#define D5 14 // 14
-#define D6 12 // 12
-#define D7 13 // 13
-#define D8 15 // 0
+#define RECEIVING_START_BYTE 0
+#define RECEIVING_CELL_ID 1
+#define RECEIVING_VOLTAGE 2
 
-#define SDA         D2
-#define SCL         D1
+// WeMos GPIO
+// #define D0 16 // 3
+// #define D1 5 // 1
+// #define D2 4 // 16
+// #define D3 0 // 5
+// #define D4 2 // 4
+// #define D5 14 // 14
+// #define D6 12 // 12
+// #define D7 13 // 13
+// #define D8 15 // 0
+
+// #define SDA         D2
+// #define SCL         D1
 
 #define CHARGE_RELAY_PIN D3
 
@@ -44,21 +50,37 @@ JsonObject& bank_voltages = bank_json_buffer.createObject();
 WiFiClient esp_client;
 PubSubClient mqtt_client(esp_client);
 
+DebugHelper debug(DEBUG_MODE);
+
+typedef union {
+ float value;
+ byte binary[4];
+} voltageContainer;
+
+voltageContainer voltage;
+
+int cell_id;
+
+uint8_t counter;
+uint8_t state;
+
 void setup() {
   initializeBoard();
-  
+
+  debug.initialize(115200);
+
   initializeBanks();  
   initializeWifi();
   initializeMqtt();
+
+  state = RECEIVING_START_BYTE;
+
+  debug.sayln('Initialized.');
 }
 
 void loop() {
-  processBank();
-
-  processMqtt();  
-  publishVoltages();
-  
-  delay(200);
+  processSerial();
+  processMqtt(); 
 }
 
 void publishVoltages() {
@@ -67,27 +89,40 @@ void publishVoltages() {
   mqtt_client.publish(MQTT_VOLTAGES_TOPIC, bank_buffer);
 }
 
-void processBank() {
-  int index = 0;
-  char voltages_buffer [CELLS_CAPACITY];
-  DynamicJsonBuffer dynamic_json_buffer;
-
-  Wire.requestFrom(BANK_DEVICE_ADDRESS, CELLS_CAPACITY);
-
-  while (Wire.available()) {
-    voltages_buffer[index++] = Wire.read();
+void processSerial() {
+  if(!Serial.available()) {
+    return;
   }
 
-  JsonArray& voltages = dynamic_json_buffer.parseArray(voltages_buffer);
+  byte incoming_byte = Serial.read();
 
-  if (voltages.success()) {
-    for(int cell = 0; cell < CELL_COUNT; cell++) {
-      float volt = voltages[cell].as<float>();
-      bank_voltages["voltages"][cell] = volt;
-    }            
-  } else {
-    // "Valtages parsing failed"
-  }  
+  if(state == RECEIVING_START_BYTE && incoming_byte == 0xFF) {
+    state = RECEIVING_CELL_ID;
+    return;
+  }
+
+  if(state == RECEIVING_CELL_ID) {
+    cell_id = incoming_byte;
+    debug.say(" [");
+    debug.say(cell_id);
+    debug.say("]");
+    state = RECEIVING_VOLTAGE;
+    counter = 0;
+    return;
+  }
+  
+  if(state == RECEIVING_VOLTAGE) {
+    voltage.binary[counter++] = incoming_byte;
+  }
+
+  if(state == RECEIVING_VOLTAGE && counter == sizeof(float)) {
+    state = RECEIVING_START_BYTE;
+    debug.say(voltage.value);
+
+    if(cell_id == 5) {
+      debug.sayln("");
+    }
+  }
 }
 
 void processMqtt() {
@@ -149,7 +184,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
 // ----- Initializers ------
 
 void initializeBoard() {
-  Wire.begin(SDA, SCL);
+  // SerialUART2.begin(115200);
   pinMode(CHARGE_RELAY_PIN, OUTPUT);  
   digitalWrite(CHARGE_RELAY_PIN, HIGH);
 }
@@ -183,8 +218,8 @@ void initializeWifi() {
 
   debug.sayln("");
   debug.sayln("WiFi connected");
-  debug.sayln("IP address: ");
-  debug.sayln(WiFi.localIP());
+  // debug.sayln("IP address: ");
+  // debug.sayln(WiFi.localIP());
 }
 
 void initializeMqtt() {
