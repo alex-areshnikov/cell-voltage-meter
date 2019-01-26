@@ -3,7 +3,7 @@
 #include <PubSubClient.h>
 #include "DebugHelper.h"
 
-#define DEBUG_MODE  true 
+#define DEBUG_MODE  false 
 
 #define WIFI_SSID   "MustangGT"
 #define WIFI_PWD    "ignorepassword"
@@ -45,6 +45,7 @@ const int CELLS_CAPACITY = JSON_ARRAY_SIZE(CELL_COUNT);
 const int TOTAL_BANK_CAPACITY = CELLS_CAPACITY + JSON_OBJECT_SIZE(2);
 
 StaticJsonBuffer<TOTAL_BANK_CAPACITY> bank_json_buffer;
+JsonArray& voltages = bank_json_buffer.createArray();
 JsonObject& bank_voltages = bank_json_buffer.createObject();
 
 WiFiClient esp_client;
@@ -66,8 +67,6 @@ uint8_t state;
 
 void setup() {
   initializeBoard();
-
-  debug.initialize(115200);
 
   initializeBanks();  
   initializeWifi();
@@ -117,9 +116,12 @@ void processSerial() {
 
   if(state == RECEIVING_VOLTAGE && counter == sizeof(float)) {
     state = RECEIVING_START_BYTE;
+    voltages[cell_id] = voltage.value;
+
     debug.say(voltage.value);
 
-    if(cell_id == 5) {
+    if(cell_id+1 == CELL_COUNT) {
+      publishVoltages();
       debug.sayln("");
     }
   }
@@ -184,14 +186,12 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
 // ----- Initializers ------
 
 void initializeBoard() {
-  // SerialUART2.begin(115200);
+  Serial.begin(115200);
   pinMode(CHARGE_RELAY_PIN, OUTPUT);  
   digitalWrite(CHARGE_RELAY_PIN, HIGH);
 }
 
 void initializeBanks() {
-    JsonArray& voltages = bank_json_buffer.createArray();
-
     for(int cell = 0; cell < CELL_COUNT; cell++) {
       voltages.add(0.0);
     }

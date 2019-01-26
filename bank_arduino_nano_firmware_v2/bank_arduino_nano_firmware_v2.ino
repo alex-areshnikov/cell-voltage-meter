@@ -2,7 +2,7 @@
 
 const float BOARD_VOLTAGE = 5.01;
 const int   VOLTAGE_PINS[] = {0,1,2,3,6,7};
-const float VOLTAGE_CORRECTIONS[] = {0, 0, 0, 0, 0.13, 0};
+const float VOLTAGE_CORRECTIONS[] = {0, 0.03, 0, 0, 0.13, 0};
 const int   REDUCTION_FACTOR_MULTIPLIERS[] = {1,2,2,3,3,4};
 
 float pin_read;
