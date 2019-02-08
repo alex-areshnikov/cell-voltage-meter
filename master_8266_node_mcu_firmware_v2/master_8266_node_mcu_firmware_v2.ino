@@ -12,6 +12,7 @@
 #define MQTT_SERVER_PORT      1883
 #define MQTT_VOLTAGES_TOPIC   "vehicle/lto/voltages"
 #define MQTT_CHARGE_TOPIC     "vehicle/lto/charge"
+#define MQTT_KEEP_ALIVE_TOPIC "vehicle/lto/keep_alive"
 
 #define RECEIVING_START_BYTE 0
 #define RECEIVING_CELL_ID 1
@@ -152,6 +153,11 @@ void mqtt_reconnect() {
         debug.sayln(MQTT_CHARGE_TOPIC);
       }
 
+      if(mqtt_client.subscribe(MQTT_KEEP_ALIVE_TOPIC)) {
+        debug.say("MQTT subscribed to ");
+        debug.sayln(MQTT_KEEP_ALIVE_TOPIC);
+      }
+
     } else {
       debug.say("failed, rc=");
       debug.say(mqtt_client.state());
@@ -179,6 +185,12 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
 
     if(first_chr == '0') {
       digitalWrite(CHARGE_RELAY_PIN, LOW);
+    }
+  }
+
+  if(String(topic) == MQTT_KEEP_ALIVE_TOPIC) {
+    if(String((char*)payload).startsWith("ping")) {
+      mqtt_client.publish(MQTT_KEEP_ALIVE_TOPIC, "pong");
     }
   }
 }
