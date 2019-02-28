@@ -8,11 +8,12 @@
 #define WIFI_SSID   "MustangGT"
 #define WIFI_PWD    "ignorepassword"
 
-#define MQTT_SERVER           "192.168.4.1"
-#define MQTT_SERVER_PORT      1883
-#define MQTT_VOLTAGES_TOPIC   "vehicle/lto/voltages"
-#define MQTT_CHARGE_TOPIC     "vehicle/lto/charge"
-#define MQTT_KEEP_ALIVE_TOPIC "vehicle/lto/keep_alive"
+#define MQTT_SERVER             "192.168.4.1"
+#define MQTT_SERVER_PORT        1883
+#define MQTT_VOLTAGES_TOPIC     "vehicle/lto/voltages"
+#define MQTT_CHARGE_TOPIC       "vehicle/lto/charge"
+#define MQTT_TRUNK_LIGHTS_TOPIC "vehicle/trunk/lights"
+#define MQTT_KEEP_ALIVE_TOPIC   "vehicle/lto/keep_alive"
 
 #define RECEIVING_START_BYTE 0
 #define RECEIVING_CELL_ID 1
@@ -22,8 +23,8 @@
 // #define D0 16 // 3
 // #define D1 5 // 1
 // #define D2 4 // 16
-// #define D3 0 // 5
-// #define D4 2 // 4
+#define D3 0 // 5
+#define D4 2 // 4
 // #define D5 14 // 14
 // #define D6 12 // 12
 // #define D7 13 // 13
@@ -33,6 +34,7 @@
 // #define SCL         D1
 
 #define CHARGE_RELAY_PIN D3
+#define TRUNK_LIGHTS_PIN D4
 
 #define CELL_COUNT  6
 #define BANK_NAME "Bank 1"
@@ -148,16 +150,9 @@ void mqtt_reconnect() {
     if (mqtt_client.connect(clientId.c_str())) {
       debug.sayln("connected");
 
-      if(mqtt_client.subscribe(MQTT_CHARGE_TOPIC)) {
-        debug.say("MQTT subscribed to ");
-        debug.sayln(MQTT_CHARGE_TOPIC);
-      }
-
-      if(mqtt_client.subscribe(MQTT_KEEP_ALIVE_TOPIC)) {
-        debug.say("MQTT subscribed to ");
-        debug.sayln(MQTT_KEEP_ALIVE_TOPIC);
-      }
-
+      mqtt_subscribe(MQTT_CHARGE_TOPIC);
+      mqtt_subscribe(MQTT_TRUNK_LIGHTS_TOPIC);
+      mqtt_subscribe(MQTT_KEEP_ALIVE_TOPIC);
     } else {
       debug.say("failed, rc=");
       debug.say(mqtt_client.state());
@@ -165,6 +160,13 @@ void mqtt_reconnect() {
       
       delay(5000);
     }
+  }
+}
+
+void mqtt_subscribe(char* topic) {
+  if(mqtt_client.subscribe(topic)) {
+    debug.say("MQTT subscribed to ");
+    debug.sayln(topic);
   }
 }
 
@@ -176,15 +178,16 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
   debug.say("Payload: ");    
   debug.sayln((char*)payload);
 
-  if(String(topic) == MQTT_CHARGE_TOPIC) {
+  if(String(topic) == MQTT_CHARGE_TOPIC || String(topic) == MQTT_TRUNK_LIGHTS_TOPIC) {
+    int the_pin = (String(topic) == MQTT_CHARGE_TOPIC ? CHARGE_RELAY_PIN : TRUNK_LIGHTS_PIN);
     char first_chr = ((char*)payload)[0];
 
     if(first_chr == '1') {
-      digitalWrite(CHARGE_RELAY_PIN, HIGH);
+      digitalWrite(the_pin, HIGH);
     }
 
     if(first_chr == '0') {
-      digitalWrite(CHARGE_RELAY_PIN, LOW);
+      digitalWrite(the_pin, LOW);
     }
   }
 
@@ -201,6 +204,9 @@ void initializeBoard() {
   Serial.begin(115200);
   pinMode(CHARGE_RELAY_PIN, OUTPUT);  
   digitalWrite(CHARGE_RELAY_PIN, HIGH);
+
+  pinMode(TRUNK_LIGHTS_PIN, OUTPUT);  
+  digitalWrite(TRUNK_LIGHTS_PIN, HIGH);
 }
 
 void initializeBanks() {
