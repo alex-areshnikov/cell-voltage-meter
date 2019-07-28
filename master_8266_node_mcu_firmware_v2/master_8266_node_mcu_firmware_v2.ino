@@ -33,15 +33,11 @@
 // #define SDA         D2
 // #define SCL         D1
 
-#define CHARGE_RELAY_PIN D3
-#define TRUNK_LIGHTS_PIN D4
-
 #define CELL_COUNT  6
 #define BANK_NAME "Bank 1"
 
-// IMPORTANT: make sure MQTT_MAX_PACKET_SIZE >= TOTAL_BANKS_CAPACITY
-// MQTT_MAX_PACKET_SIZE is definde in PubSubClient.h
-// const int TOTAL_BANKS_CAPACITY = (SINGLE_BANK_CAPACITY + BANK_INFO_MEMORY_ALLOCATION) * BANKS_COUNT;
+uint8_t CHARGE_ID = 1;
+uint8_t LIGHTS_ID = 2;
 
 const int BANK_DEVICE_ADDRESS = 9;
 const int CELLS_CAPACITY = JSON_ARRAY_SIZE(CELL_COUNT);
@@ -178,17 +174,13 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
   debug.say("Payload: ");    
   debug.sayln((char*)payload);
 
-  if(String(topic) == MQTT_CHARGE_TOPIC || String(topic) == MQTT_TRUNK_LIGHTS_TOPIC) {
-    int the_pin = (String(topic) == MQTT_CHARGE_TOPIC ? CHARGE_RELAY_PIN : TRUNK_LIGHTS_PIN);
+  if(String(topic) == MQTT_CHARGE_TOPIC || String(topic) == MQTT_TRUNK_LIGHTS_TOPIC) {    
+    uint8_t the_id = (String(topic) == MQTT_CHARGE_TOPIC ? CHARGE_ID : LIGHTS_ID);
     char first_chr = ((char*)payload)[0];
-
-    if(first_chr == '1') {
-      digitalWrite(the_pin, HIGH);
-    }
-
-    if(first_chr == '0') {
-      digitalWrite(the_pin, LOW);
-    }
+    
+    Serial.write(0xFA);
+    Serial.write(the_id);
+    Serial.write(first_chr == '1' ? HIGH : LOW);
   }
 
   if(String(topic) == MQTT_KEEP_ALIVE_TOPIC) {
@@ -201,12 +193,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
 // ----- Initializers ------
 
 void initializeBoard() {
-  Serial.begin(115200);
-  pinMode(CHARGE_RELAY_PIN, OUTPUT);  
-  digitalWrite(CHARGE_RELAY_PIN, HIGH);
-
-  pinMode(TRUNK_LIGHTS_PIN, OUTPUT);  
-  digitalWrite(TRUNK_LIGHTS_PIN, HIGH);
+  Serial.begin(115200);  
 }
 
 void initializeBanks() {
